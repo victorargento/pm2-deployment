@@ -1,0 +1,84 @@
+name: 'PM2 Deployment'
+description: 'Deploy your nodejs or typescript app with PM2'
+branding:
+  icon: "zap"
+  color: "yellow"
+inputs:
+  build:  
+    required: false
+    default: 'false'
+  host:
+    description: "Remote host"
+    required: true
+  username:
+    description: "Username to login"
+    required: true
+  port:
+    description: "SSH port"
+    required: false
+    default: "22"
+  password:
+    description: "SSH password"
+    required: true
+  remote-path:
+    description: "Remote path where the files are going to be copied"
+    required: true
+  pm2-id:
+      description: "PM2 ID or Name of the process"
+      required: true
+
+runs:
+  using: "composite"
+  steps:
+
+    - name: Get repository content
+      uses: actions/checkout@v3
+    
+    - name: Copy repository content
+      uses: appleboy/scp-action@v0.1.2
+      env:
+        HOST: ${{ inputs.host }}
+        USERNAME: ${{ inputs.username }}
+        PORT: ${{ inputs.port }}
+        PASSWORD: ${{ inputs.password }}
+      with:
+        source: "."
+        target: ${{ inputs.remote-path }}
+        
+    - name: Install project
+      uses: appleboy/ssh-action@v0.1.4 
+      with:
+        HOST: ${{ inputs.host }}
+        USERNAME: ${{ inputs.username }}
+        PORT: ${{ inputs.port }}
+        PASSWORD: ${{ inputs.password }}
+        script: cd ${{ inputs.remote-path }} && npm ci 
+
+    - name: Build your project
+      if: ${{ inputs.build == true }}
+      uses: appleboy/ssh-action@v0.1.4 
+      with:
+        HOST: ${{ inputs.host }}
+        USERNAME: ${{ inputs.username }}
+        PORT: ${{ inputs.port }}
+        PASSWORD: ${{ inputs.password }}
+        script: cd ${{ inputs.remote-path }} && npm run build     
+       
+    - name: Reload remote application
+      uses: appleboy/ssh-action@v0.1.4 
+      with:
+        HOST: ${{ inputs.host }}
+        USERNAME: ${{ inputs.username }}
+        PORT: ${{ inputs.port }}
+        PASSWORD: ${{ inputs.password }}
+        script: cd ${{ inputs.remote-path }} && pm2 reload ecosystem.config.js
+
+    - name: Reset number of restarts
+      uses: appleboy/ssh-action@v0.1.4 
+      with:
+        HOST: ${{ inputs.host }}
+        USERNAME: ${{ inputs.username }}
+        PORT: ${{ inputs.port }}
+        PASSWORD: ${{ inputs.password }}
+        script: pm2 reset ${{ inputs.pm2-id }}
+      
